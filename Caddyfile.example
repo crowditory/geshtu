@@ -1,0 +1,26 @@
+# Caddy config for Geshtu. Copy to ./Caddyfile and edit.
+# Run with:  docker compose --profile tls up -d
+
+{$PUBLIC_HOSTNAME} {
+    encode gzip
+
+    # MCP HTTP endpoint (for clients that speak HTTP MCP)
+    handle_path /mcp/* {
+        reverse_proxy mcp:3000
+    }
+
+    # Admin UI
+    handle_path /admin/* {
+        reverse_proxy admin:8501
+    }
+
+    # API (private — only expose if you need it remotely)
+    handle_path /api/* {
+        reverse_proxy api:8000
+    }
+
+    # Default: serve admin
+    handle {
+        reverse_proxy admin:8501
+    }
+}

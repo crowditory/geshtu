@@ -1,2 +1,70 @@
 .claude/
 .spec/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+.streamlit/secrets.toml
+
+# Local deployment overrides (users derive from the .example versions)
+Caddyfile
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# DB dumps / backups
+backup-*.sql
+*.dump
+*.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+dist/
+build/
+.python-version
+
+# Node
+node_modules/
+mcp/dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# Docker / runtime
+caddy_data/
+caddy_config/
+pgdata/
+redisdata/
+data/
+logs/
+
+# Local model cache (BGE-M3 is ~2GB)
+.model_cache/
+models/

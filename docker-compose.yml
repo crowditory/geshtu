@@ -1,0 +1,133 @@
+name: geshtu
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-geshtu}
+      POSTGRES_USER: ${POSTGRES_USER:-geshtu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geshtu} -d ${POSTGRES_DB:-geshtu}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-geshtu}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geshtu}
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-claude-haiku-4-5}
+      DIGEST_MODEL: ${DIGEST_MODEL:-claude-sonnet-4-6}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      MESSAGES_RETENTION_DAYS: ${MESSAGES_RETENTION_DAYS:-0}
+      GESHTU_TELEMETRY: ${GESHTU_TELEMETRY:-off}
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:-localhost}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - modelcache:/app/.model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ./api
+    restart: unless-stopped
+    command: ["celery", "-A", "geshtu.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-geshtu}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geshtu}
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-claude-haiku-4-5}
+      DIGEST_MODEL: ${DIGEST_MODEL:-claude-sonnet-4-6}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - modelcache:/app/.model_cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: ./mcp
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+      MCP_PORT: "3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-3000}:3000"
+
+  admin:
+    build:
+      context: ./admin
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-geshtu}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-geshtu}
+      JWT_SECRET: ${JWT_SECRET}
+      API_URL: http://api:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_PORT:-8501}:8501"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["tls"]
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+      - mcp
+      - admin
+
+volumes:
+  pgdata:
+  redisdata:
+  modelcache:
+  caddydata:
+  caddyconfig:

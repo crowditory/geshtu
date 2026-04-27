@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: geshtu
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: geshtu
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U geshtu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://geshtu:test@localhost:5432/geshtu
+      REDIS_URL: redis://localhost:6379/0
+      ANTHROPIC_API_KEY: test-key-not-real
+      JWT_SECRET: "0000000000000000000000000000000000000000000000000000000000000000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install api package
+        working-directory: api
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]" --no-deps
+          pip install fastapi "uvicorn[standard]" "pydantic>=2.7" pydantic-settings \
+              "sqlalchemy>=2.0" "psycopg[binary,pool]>=3.2" pgvector "celery[redis]" redis \
+              anthropic PyJWT bcrypt python-multipart httpx click structlog \
+              pytest pytest-asyncio pytest-cov respx
+      - name: Apply migrations
+        working-directory: api
+        run: python -m geshtu.migrate
+      - name: Run unit + DB tests
+        working-directory: api
+        run: pytest -q --maxfail=1 -k "not golden"
+
+  mcp-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mcp/package.json
+      - name: Install + typecheck
+        working-directory: mcp
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc --noEmit -p tsconfig.json
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ruff
+        run: |
+          pip install ruff
+          ruff check api

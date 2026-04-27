@@ -1,0 +1,31 @@
+{
+  "name": "@geshtu/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Geshtu — exposes 6 tools that proxy to memory-api",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "geshtu-mcp": "dist/server.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsc -w -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

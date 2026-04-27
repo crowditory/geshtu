@@ -1,0 +1,32 @@
+[
+  {
+    "name": "stack_choice",
+    "input": "We've decided to use Postgres 16 for the main database. Reason: pgvector is mature and our team already operates Postgres for billing.",
+    "expect_facts_min": 1,
+    "expect_decisions_min": 1
+  },
+  {
+    "name": "fact_only",
+    "input": "Note that the support email is help@playserv.io and it routes to the on-call shared inbox.",
+    "expect_facts_min": 1,
+    "expect_decisions_min": 0
+  },
+  {
+    "name": "decision_with_implicit_rationale",
+    "input": "Let's go with monthly billing — annual is too inflexible for the early customers we're seeing.",
+    "expect_facts_min": 0,
+    "expect_decisions_min": 1
+  },
+  {
+    "name": "small_talk",
+    "input": "ok thanks!",
+    "expect_facts_min": 0,
+    "expect_decisions_min": 0
+  },
+  {
+    "name": "question_no_answer",
+    "input": "What database should we use for the v2 backend?",
+    "expect_facts_min": 0,
+    "expect_decisions_min": 0
+  }
+]
