@@ -1,0 +1,23 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/crowditory/geshtu/security/advisories/new
+    about: |
+      Please do NOT file public issues for security problems.
+      Use GitHub's private security advisory flow, or email
+      security@geshtu.io. See SECURITY.md for details.
+  - name: Question or discussion
+    url: https://github.com/crowditory/geshtu/discussions
+    about: |
+      For open-ended questions, "is this the right approach?",
+      and ideas that are not yet a concrete bug or feature
+      request, use Discussions.
+  - name: Code of Conduct report
+    url: mailto:conduct@geshtu.io
+    about: |
+      Reports about contributor behavior go to
+      conduct@geshtu.io and are treated confidentially.
+  - name: Commercial / non-AGPL licensing
+    url: mailto:licensing@geshtu.io
+    about: |
+      For organizations that cannot use AGPL-licensed code.

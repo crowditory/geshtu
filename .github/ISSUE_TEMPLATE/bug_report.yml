@@ -1,0 +1,119 @@
+name: Bug report
+description: Something is broken or behaves differently than documented.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        Before submitting, please:
+        - Search existing issues — your bug may already be reported.
+        - Confirm you are running a supported version (see SECURITY.md).
+        - Do **not** file security issues here. See SECURITY.md.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing what is wrong.
+      placeholder: "When I do X, Y happens, but I expected Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Minimal steps that reliably trigger the bug. Include the
+        exact MCP tool call, REST request, or admin action where
+        relevant.
+      placeholder: |
+        1. Start a fresh `docker compose up`.
+        2. Issue a POST to /messages with payload ...
+        3. Call geshtu_search with query ...
+        4. Observe the response.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages and stack traces if any.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Geshtu version
+      description: Output of `git describe` or the release tag.
+      placeholder: "0.2.1 or main@abcdef"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which service is involved?
+      multiple: true
+      options:
+        - api (FastAPI)
+        - worker (Celery)
+        - mcp (Node.js)
+        - admin (Streamlit)
+        - postgres / schema / migrations
+        - docker-compose / deployment
+        - docs
+        - other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Host OS, Docker version, deployment topology
+        (single host, reverse proxy, etc.). Anything that
+        diverges from the documented `docker-compose.yml`.
+      placeholder: |
+        - Host OS: Ubuntu 24.04
+        - Docker: 27.0
+        - Reverse proxy: Caddy 2.8
+        - Postgres: 16.3 (in-compose)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste excerpts from `docker compose logs` for the affected
+        service. **Do not paste secrets, tokens, or message content
+        you cannot share.**
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is not a security issue. (Security goes to SECURITY.md.)
+          required: true
+        - label: I have read the Code of Conduct.
+          required: true

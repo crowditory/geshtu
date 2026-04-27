@@ -1,0 +1,99 @@
+name: RFC (Request for Comments)
+description: Propose a major change to the MCP tool surface or database schema.
+title: "[RFC] "
+labels: ["rfc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        RFCs are required for any change that:
+
+        - Adds, removes, or changes the signature of an MCP tool.
+        - Adds, removes, or changes the shape of a core table
+          (`messages`, `facts`, `decisions`, `session_summaries`).
+        - Changes the public REST API surface in a non-additive way.
+        - Otherwise has effects that are hard to reverse later.
+
+        See [GOVERNANCE.md](../../GOVERNANCE.md) → "RFC process" for
+        the lifecycle. Comment period is **at least 7 days**.
+
+  - type: input
+    id: title
+    attributes:
+      label: One-line summary
+      description: A short, clear description of the proposal.
+      placeholder: "Add a per-fact confidence score returned by geshtu_search."
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: |
+        Why this change? What problem does it solve, and for whom?
+        Include concrete use cases.
+    validations:
+      required: true
+
+  - type: textarea
+    id: design
+    attributes:
+      label: Detailed design
+      description: |
+        Be specific. For schema changes, include the migration. For
+        MCP changes, include the new tool signature and example
+        payloads. For API changes, include endpoint, method, request,
+        and response shapes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: Drawbacks
+      description: |
+        Why might we *not* do this? Implementation cost, ongoing
+        maintenance, increased surface area, breaking-change concerns.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: |
+        What other designs were considered? What is the impact of
+        not doing this at all?
+    validations:
+      required: true
+
+  - type: textarea
+    id: migration
+    attributes:
+      label: Migration / backwards compatibility
+      description: |
+        How will existing deployments upgrade? Is there a deprecation
+        period? Are old behaviors preserved behind a flag?
+    validations:
+      required: true
+
+  - type: textarea
+    id: unresolved
+    attributes:
+      label: Unresolved questions
+      description: |
+        What is still open? What feedback are you specifically
+        looking for during the comment period?
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: I read GOVERNANCE.md → RFC process.
+          required: true
+        - label: This proposal affects the MCP surface, schema, or REST API.
+          required: true
+        - label: I am prepared to revise based on the public comment period.
+          required: true
