@@ -25,6 +25,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from geshtu.config import get_settings
 from geshtu.db.session import Base
 
+# Module-level read on purpose: importing this module without DATABASE_URL /
+# JWT_SECRET set means the API or worker is misconfigured and we want to fail
+# at startup, not on the first request. Vector dim is also baked into the
+# pgvector column type below and must match EMBEDDING_DIM at migration time.
 _DIM = get_settings().embedding_dim
 
 

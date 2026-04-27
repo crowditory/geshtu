@@ -1,8 +1,9 @@
 """Shared pytest fixtures.
 
-The DB-touching tests assume a Postgres reachable via $TEST_DATABASE_URL
-(falls back to the regular $DATABASE_URL). They're skipped if no DB is
-present, so unit tests still pass on a bare laptop.
+DB-touching tests skip (rather than fail) when Postgres isn't reachable.
+This lets contributors run `pytest` on a fresh checkout to validate pure
+logic (parser, JSON handling) without spinning up Docker. CI does spin
+up the service container, so the skipped tests still run there.
 """
 
 from __future__ import annotations

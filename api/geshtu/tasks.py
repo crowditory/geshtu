@@ -27,7 +27,13 @@ _log = get_logger(__name__)
 
 @app.task(name="geshtu.extract_message", bind=True, max_retries=3, default_retry_delay=10)
 def extract_message_task(self, message_id: str, project_id: str) -> dict:
-    """Run the spec §5.1 write-path pipeline for one message."""
+    """Run the spec §5.1 write-path pipeline for one message.
+
+    Retries on transient Anthropic / network failures (extract_from_message
+    propagates them). After ``max_retries`` exhausts, Celery delivers the
+    task to the dead-letter queue; the message itself is already saved, so
+    extraction can be re-triggered later by republishing the job.
+    """
     msg_id = uuid.UUID(message_id)
     proj_id = uuid.UUID(project_id)
 
@@ -46,7 +52,7 @@ def extract_message_task(self, message_id: str, project_id: str) -> dict:
         try:
             extraction = extract_from_message(msg.content, project.name)
         except Exception as exc:  # noqa: BLE001
-            _log.warning("extraction_retry", error=str(exc))
+            _log.warning("extraction_retry", error=str(exc), attempt=self.request.retries)
             raise self.retry(exc=exc) from exc
 
         new_facts: list[dict] = []
@@ -72,6 +78,9 @@ def extract_message_task(self, message_id: str, project_id: str) -> dict:
         new_decs: list[str] = []
         for d in extraction.decisions:
             try:
+                # Embed decision + rationale together: when the AI later
+                # searches for "why did we pick X", a query that mentions
+                # the rationale should also surface the matching decision.
                 dvec = embed(f"{d.decision}\n\n{d.rationale}")
             except Exception:  # noqa: BLE001
                 dvec = None
@@ -132,7 +141,14 @@ def summarize_session_task(session_id: str) -> dict:
 
 @app.task(name="geshtu.retention_sweep")
 def retention_sweep_task() -> dict:
-    """Zero out message bodies older than MESSAGES_RETENTION_DAYS (spec §18.2)."""
+    """Zero message bodies older than ``MESSAGES_RETENTION_DAYS`` (spec §18.2).
+
+    Why zero, not DELETE? Facts and decisions have FK references to messages
+    via `source_message_id` for audit. We keep the row + ID intact so those
+    citations don't break, and only erase the high-sensitivity column
+    (`content`). The fact statement remains, but it's already paraphrased
+    by the extraction step, not the raw message verbatim.
+    """
     s = get_settings()
     if s.messages_retention_days <= 0:
         return {"status": "disabled"}

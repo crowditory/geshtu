@@ -39,7 +39,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Unknown user: {args.user}", file=sys.stderr)
             return 1
 
-        # Detach attribution but keep content (the team's memory).
+        # GDPR Article 17 lets us choose between deletion and anonymization
+        # when the data is collectively held. We anonymize: facts/decisions
+        # belong to the team, not the individual. Stripping `created_by` /
+        # `decided_by` removes the personal link while preserving the team's
+        # memory — the deletion right is satisfied because the user is no
+        # longer identifiable from the remaining record.
         db.execute(update(Fact).where(Fact.created_by == user.id).values(created_by=None))
         db.execute(update(Decision).where(Decision.decided_by == user.id).values(decided_by=None))
 

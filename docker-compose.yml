@@ -27,6 +27,12 @@ services:
       timeout: 3s
       retries: 10
 
+  # The API and worker share one Docker image (./api) and only differ in
+  # CMD. Sharing means embed.py / extract.py / models.py only get built
+  # once and the BGE-M3 model cache is mountable into both. The API is on
+  # `expose` not `ports`: it stays on the internal Docker network and is
+  # reached only through MCP / admin / Caddy. Publish it on the host
+  # only if you need a remote REST client.
   api:
     build:
       context: ./api

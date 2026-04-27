@@ -2,6 +2,13 @@
 
 A single SQL combines pgvector cosine and pg_trgm similarity, then
 fuses the two ranked lists with RRF. Returns top-k facts.
+
+Why RRF and not weighted-sum? Vector cosine and trigram similarity live on
+incomparable scales — a 0.85 cosine doesn't mean "more relevant" than a
+0.50 trigram. RRF normalizes by collapsing each list to its rank order,
+which is invariant to those scales. The constant 60 is the canonical RRF
+parameter from the original Cormack/Clarke/Buettcher paper; it's almost
+never worth tuning. Only the relative ranks within each list matter.
 """
 
 from __future__ import annotations

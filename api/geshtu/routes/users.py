@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
@@ -149,8 +149,6 @@ def revoke_token(
     if t is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     if t.revoked_at is None:
-        from datetime import datetime, timezone
-
         t.revoked_at = datetime.now(tz=timezone.utc)
     db.commit()
     return None

@@ -72,6 +72,14 @@ def _client_singleton() -> Anthropic:
 def _cached(
     db: Session, project_id: uuid.UUID, depth: str, since: datetime | None, ttl: int
 ) -> Digest | None:
+    """Return a fresh-enough cached digest, or None.
+
+    Cache key is (project, depth, since): if Monday morning everyone on the
+    team asks "what's new this week" with the same `since`, only the first
+    request hits Sonnet. Different `since` values get distinct cache entries
+    by design — a digest "since Monday" is not interchangeable with one
+    "since last Friday" even if generated 10 seconds apart.
+    """
     cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=ttl)
     stmt = (
         select(Digest)
@@ -120,6 +128,9 @@ def generate_digest(
     if since is not None:
         facts_q = facts_q.where(Fact.created_at >= since)
         decs_q = decs_q.where(Decision.decided_at >= since)
+    # Hard ceilings keep Sonnet's input (and our bill) bounded for projects
+    # that produce thousands of facts a week. Items beyond the ceiling are
+    # dropped silently — if you're hitting these, narrow `since` instead.
     facts_q = facts_q.order_by(Fact.created_at.desc()).limit(500)
     decs_q = decs_q.order_by(Decision.decided_at.desc()).limit(200)
 
@@ -142,6 +153,9 @@ def generate_digest(
     template = _TEMPLATES[depth]
 
     if not facts and not decisions and not summaries:
+        # Skip the LLM call when there's literally nothing to summarize.
+        # Cached so a project with no activity doesn't keep generating empty
+        # digests on every request.
         content_md = (
             f"# {project_name} — digest\n\n"
             f"_No activity recorded since {since.isoformat() if since else 'project start'}._\n"
@@ -216,7 +230,13 @@ def _build_payload(
     return "\n".join(lines)
 
 
+class DigestGenerationError(RuntimeError):
+    """Sonnet was unreachable / errored. Caller decides how to surface it."""
+
+
 def _call_sonnet(template: str, payload: str) -> str:
+    # Errors propagate so the route returns 5xx and the digest is NOT cached.
+    # Caching a failure would persist it for an hour; better to fail loudly.
     s = get_settings()
     client = _client_singleton()
     try:
@@ -228,7 +248,7 @@ def _call_sonnet(template: str, payload: str) -> str:
         )
     except Exception as exc:  # noqa: BLE001
         _log.warning("digest_api_error", error=str(exc))
-        return f"_Digest generation failed: {exc}_\n\nRaw payload:\n\n{payload}"
+        raise DigestGenerationError(str(exc)) from exc
 
     return "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
 

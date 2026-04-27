@@ -107,6 +107,10 @@ def close_session(
 
     summary_md = body.summary_md
     if not summary_md and body.auto_summarize:
+        # Synchronous Sonnet call: 5–30 seconds. The MCP `close_session`
+        # tool is invoked at the END of a conversation, where a one-time
+        # blocking wait is acceptable. If this becomes a UX problem in
+        # practice, route to `summarize_session_task` and return a job id.
         summary_md = summarize_session(db, session_id)
     if not summary_md:
         raise HTTPException(

@@ -23,13 +23,20 @@ _model: "SentenceTransformer | None" = None
 
 
 def get_embedder() -> "SentenceTransformer":
+    # Double-checked locking. The fast path skips the lock once the model is
+    # loaded — embedding is hot and we don't want every request to contend.
+    # The lock matters because both Celery's prefork pool (worker side) and
+    # FastAPI threadpool (api side, on /facts log paths) can race here.
     global _model
     if _model is not None:
         return _model
     with _lock:
         if _model is not None:
             return _model
-        from sentence_transformers import SentenceTransformer  # heavy import
+        # sentence_transformers / torch import is ~600ms and ~2GB RSS.
+        # Deferring it lets `python -m geshtu.migrate` and the bootstrap CLI
+        # run without paying that cost.
+        from sentence_transformers import SentenceTransformer
 
         s = get_settings()
         cache_dir = os.environ.get("SENTENCE_TRANSFORMERS_HOME", "/app/.model_cache")

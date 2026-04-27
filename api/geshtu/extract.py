@@ -16,6 +16,8 @@ from geshtu.logging import get_logger
 
 _log = get_logger(__name__)
 
+# Braces are doubled because we feed this through `str.format(project_name=…)`
+# below; a single { inside the JSON example would be parsed as a placeholder.
 SYSTEM_PROMPT = """\
 You are a fact-and-decision extractor for a team memory system.
 Project: {project_name}.
@@ -63,13 +65,16 @@ class Extraction:
 
 
 def should_skip(content: str, min_chars: int) -> bool:
-    """Cheap pre-filter; saves an API round-trip for trivial messages."""
+    """Cheap pre-filter; saves an API round-trip for trivial messages.
+
+    False negatives are fine (the LLM will return empty arrays anyway).
+    False positives are the risk we're managing — keep this conservative.
+    """
     if not content:
         return True
     stripped = content.strip()
     if len(stripped) < min_chars:
         return True
-    # crude small-talk detection
     lower = stripped.lower()
     GREETINGS = ("hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "yes", "no")
     if lower in GREETINGS or any(lower.startswith(g + " ") for g in GREETINGS) and len(stripped) < 60:
@@ -88,21 +93,26 @@ def _client_singleton() -> Anthropic:
 
 
 def extract_from_message(content: str, project_name: str) -> Extraction:
+    """Extract facts + decisions from a single message via Haiku.
+
+    Raises on transport / API errors so the Celery worker can retry. Returns
+    an empty ``Extraction`` only when the message itself yields nothing
+    (skip-filtered, unparseable model output) — those are not retryable.
+    """
     s = get_settings()
     if should_skip(content, s.extraction_min_chars):
         return Extraction.empty()
 
     client = _client_singleton()
-    try:
-        resp = client.messages.create(
-            model=s.extraction_model,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT.format(project_name=project_name),
-            messages=[{"role": "user", "content": content}],
-        )
-    except Exception as exc:  # noqa: BLE001
-        _log.warning("extraction_api_error", error=str(exc))
-        return Extraction.empty()
+    # Let Anthropic / network errors propagate: the worker uses them as the
+    # signal to retry with backoff. Swallowing them here would silently lose
+    # extraction for every message during an outage.
+    resp = client.messages.create(
+        model=s.extraction_model,
+        max_tokens=1024,
+        system=SYSTEM_PROMPT.format(project_name=project_name),
+        messages=[{"role": "user", "content": content}],
+    )
 
     text = "".join(block.text for block in resp.content if getattr(block, "type", "") == "text")
     return _parse_extraction(text)
@@ -114,7 +124,8 @@ def _parse_extraction(text: str) -> Extraction:
 
     cleaned = text.strip()
     if cleaned.startswith("```"):
-        # Strip ``` fences if the model added them
+        # Haiku occasionally adds ```json fences despite the "no code fences"
+        # instruction. Strip them rather than retry — retries cost ~€0.001 each.
         cleaned = cleaned.strip("`")
         if cleaned.lower().startswith("json"):
             cleaned = cleaned[4:].strip()
@@ -122,7 +133,8 @@ def _parse_extraction(text: str) -> Extraction:
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError:
-        # Try to locate the first { ... } JSON object
+        # Some models emit a sentence before the JSON ("Sure, here you go:").
+        # Last-resort: extract the outermost { ... } substring.
         start = cleaned.find("{")
         end = cleaned.rfind("}")
         if start == -1 or end == -1 or end <= start:
@@ -137,11 +149,17 @@ def _parse_extraction(text: str) -> Extraction:
     facts_in = data.get("facts") or []
     decisions_in = data.get("decisions") or []
 
+    def _opt(s: object) -> str | None:
+        if s is None:
+            return None
+        text = str(s).strip()
+        return text or None
+
     facts = [
         ExtractedFact(
             statement=str(f["statement"]).strip(),
-            entity=(f.get("entity") or None) and str(f["entity"]).strip(),
-            attribute=(f.get("attribute") or None) and str(f["attribute"]).strip(),
+            entity=_opt(f.get("entity")),
+            attribute=_opt(f.get("attribute")),
         )
         for f in facts_in
         if isinstance(f, dict) and f.get("statement")

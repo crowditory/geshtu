@@ -68,7 +68,9 @@ def _strip_prefix(t: str) -> str:
 
 
 def _bcrypt_hash(token: str) -> str:
-    # bcrypt has a 72-byte input cap; pre-hash with SHA-256 to support any token length.
+    # bcrypt silently truncates input at 72 bytes — JWTs are larger than that.
+    # Pre-hashing with SHA-256 makes the input a fixed 32 bytes and prevents
+    # two distinct long tokens from colliding on bcrypt's 72-byte prefix.
     digest = hashlib.sha256(token.encode("utf-8")).digest()
     return bcrypt.hashpw(digest, bcrypt.gensalt(rounds=12)).decode("utf-8")
 
@@ -142,8 +144,13 @@ class JWTAuthProvider:
         ).scalar_one_or_none()
         if record is None or record.revoked_at is not None:
             return None
+        # JWT signature is already verified above; the bcrypt check defends
+        # against the case where JWT_SECRET leaks but the DB doesn't —
+        # an attacker could forge JWTs but not the hashed token row.
         if not _bcrypt_check(token, record.token_hash):
             return None
+        # Constant-time compare to avoid leaking whether the JWT's `sub`
+        # matches the access_tokens.user_id via timing.
         if not hmac.compare_digest(str(record.user_id), str(user_id)):
             return None
 
@@ -167,7 +174,9 @@ def _extract_bearer(request: Request) -> str | None:
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     if auth and auth.lower().startswith("bearer "):
         return auth.split(" ", 1)[1].strip()
-    # Allow ?token=... for the few clients that can't set headers (rare).
+    # Some MCP / SSE clients can't set arbitrary headers and need the token
+    # in the URL. Tradeoff: query params land in access logs / referrer
+    # headers — operators should prefer header auth when possible.
     qp = request.query_params.get("token")
     return qp
 

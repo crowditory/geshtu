@@ -1,5 +1,11 @@
 -- Geshtu initial schema. See spec §3.
 -- Idempotent where possible; runs on a fresh DB.
+--
+-- Note on `team_id` columns: in OSS single-team mode there is exactly one
+-- row in `team`, so these columns are effectively redundant today. They are
+-- threaded through every scoped table on purpose (spec §15.6.1) so the path
+-- to a future hosted SaaS is "lift the single-row assumption", not a
+-- schema rewrite. Do not remove them.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
@@ -94,6 +100,11 @@ CREATE TABLE IF NOT EXISTS facts (
     metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Partial index: dedup and search both filter by `valid_until IS NULL`
+-- (the active set), and that subset is typically <50% of the table once a
+-- project has run for a while. The HNSW index next to it is partial too:
+-- pgvector's HNSW handles deletes by tombstoning, so we don't pay for
+-- search lookups against superseded facts.
 CREATE INDEX IF NOT EXISTS idx_facts_active ON facts(project_id) WHERE valid_until IS NULL;
 CREATE INDEX IF NOT EXISTS idx_facts_embedding ON facts USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX IF NOT EXISTS idx_facts_trgm ON facts USING gin (statement gin_trgm_ops);

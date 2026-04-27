@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 // Geshtu MCP server. Speaks MCP over stdio (one server per client process).
 //
-// The token can be supplied two ways:
-//   1) GESHTU_TOKEN env var — set in the client's MCP config
-//   2) Authorization header on the HTTP transport (for HTTP MCP clients)
+// This server does NOT verify the token. It just forwards it as a Bearer
+// header to memory-api on every call, and the API does the cryptographic
+// check (signature + bcrypt + revocation) — that keeps the MCP layer
+// dumb and means a leaked JWT_SECRET never ends up shipped to clients.
+//
+// Token sources (first wins):
+//   1) GESHTU_TOKEN env var — the standard local-npx pattern
+//   2) (future) Authorization header on an HTTP transport
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -67,8 +72,10 @@ const CloseSessionInput = z.object({
 });
 
 // Convert zod → JSON Schema. The SDK accepts plain JSON Schema objects.
+// We don't pull in `zod-to-json-schema` because (a) it's a heavy dep for the
+// six small shapes we have, and (b) we want the emitted schema to be exactly
+// what the model sees — no surprises from the converter's own conventions.
 function jsonSchema(s: z.ZodTypeAny): any {
-  // Minimal converter for the shapes used here.
   const def = (s as any)._def;
   if (def.typeName === "ZodObject") {
     const shape = def.shape() as Record<string, z.ZodTypeAny>;

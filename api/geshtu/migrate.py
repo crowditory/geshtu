@@ -17,8 +17,13 @@ _log = get_logger(__name__)
 def _list_migrations() -> list[tuple[str, str]]:
     """Return [(version, sql_text), ...] sorted by version."""
     pkg = resources.files("geshtu.db") / "migrations"
+    # importlib.resources.Traversable has no __lt__; sort by name explicitly.
+    files = sorted(
+        (p for p in pkg.iterdir() if p.name.endswith(".sql")),
+        key=lambda p: p.name,
+    )
     out: list[tuple[str, str]] = []
-    for f in sorted(p for p in pkg.iterdir() if p.name.endswith(".sql")):
+    for f in files:
         version = Path(f.name).stem
         sql = f.read_text(encoding="utf-8")
         out.append((version, sql))

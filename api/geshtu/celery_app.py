@@ -28,6 +28,8 @@ app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # acks_late + prefetch=1 makes one extraction = one task on the wire,
+    # so a worker crash mid-extraction redelivers the job rather than losing it.
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_default_queue="extraction",
@@ -37,10 +39,13 @@ app.conf.update(
         "geshtu.summarize_session": {"queue": "extraction"},
         "geshtu.retention_sweep": {"queue": "maintenance"},
     },
-    beat_schedule={
-        "retention-sweep-daily": {
-            "task": "geshtu.retention_sweep",
-            "schedule": 24 * 60 * 60.0,  # once a day
-        },
-    },
 )
+
+# Retention is a maintenance task you trigger from cron or manually:
+#
+#     docker compose exec api python -c \
+#       "from geshtu.tasks import retention_sweep_task; print(retention_sweep_task())"
+#
+# We intentionally do NOT start `celery beat` in compose: a beat process
+# adds another moving part for a once-a-day job that's easier to manage with
+# host cron or a scheduled GitHub Actions workflow.

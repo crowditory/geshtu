@@ -1,5 +1,9 @@
 // Thin HTTP client that talks to memory-api. The MCP server is a proxy:
 // it never holds business logic, only forwards calls.
+//
+// Uses Node's built-in fetch (Node 20+) instead of axios/got/undici-direct
+// to keep the npm install footprint of `@geshtu/mcp` small — every Claude
+// Desktop user runs this via `npx -y`, and dependency size matters there.
 
 const API_URL = process.env.API_URL ?? "http://api:8000";
 

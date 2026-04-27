@@ -1,8 +1,10 @@
 """Lightweight wrapper for enqueueing extraction jobs from the API.
 
-The API doesn't import Celery tasks directly (avoids loading torch/HF
-on the API container at import time). Instead it uses send_task with
-the well-known task name. The worker registers the actual task body.
+We deliberately use ``send_task("geshtu.extract_message", ...)`` by name
+rather than importing the task function. Importing it would pull in
+``geshtu.tasks`` → ``geshtu.embed`` → ``sentence_transformers`` → torch,
+which adds ~600ms of import time and ~2GB of RSS to every API process for
+no benefit (the API never embeds; the worker does).
 """
 
 from __future__ import annotations

@@ -64,14 +64,18 @@ def append_message(
     db.commit()
     db.refresh(msg)
 
-    # Spec §5.1 invariant: save synchronously and return BEFORE the
-    # extraction job runs. Never block the user on Haiku.
+    # Spec §5.1 invariant: the message is committed BEFORE we touch Redis.
+    # Two consequences:
+    #   1) The user gets a 200 even if extraction fails or is delayed.
+    #   2) If Redis is down here, we still keep the raw log; the message can
+    #      be re-enqueued later (it's already in `messages`).
+    # We skip extraction on `system` / `tool` messages: they're framing or
+    # tool output, not statements the team is making about the world.
     job_id: str | None = None
     if body.extract and body.role in ("user", "assistant"):
         try:
             job_id = enqueue_extraction(message_id=msg.id, project_id=sess.project_id)
         except Exception:  # noqa: BLE001
-            # Redis down → degrade gracefully; the message is saved.
             job_id = None
 
     return MessageOut(

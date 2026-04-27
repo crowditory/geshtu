@@ -8,7 +8,6 @@ Exposes:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -17,7 +16,7 @@ from sqlalchemy.orm import Session
 from geshtu.auth import AuthedUser, current_user
 from geshtu.db.session import get_db
 from geshtu.dedup import upsert_fact
-from geshtu.digest import DEPTHS, generate_digest
+from geshtu.digest import DEPTHS, DigestGenerationError, generate_digest
 from geshtu.embed import embed
 from geshtu.logging import get_logger
 from geshtu.routes.common import log_access, parse_since, resolve_project
@@ -50,15 +49,21 @@ def get_digest(
         )
     proj = resolve_project(db, project)
     s = parse_since(since)
-    res = generate_digest(
-        db,
-        project_id=proj.id,
-        project_name=proj.name,
-        since=s,
-        depth=depth,
-        requested_by=user.id,
-        use_cache=use_cache,
-    )
+    try:
+        res = generate_digest(
+            db,
+            project_id=proj.id,
+            project_name=proj.name,
+            since=s,
+            depth=depth,
+            requested_by=user.id,
+            use_cache=use_cache,
+        )
+    except DigestGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"upstream model error: {exc}",
+        ) from exc
     log_access(
         db,
         user_id=user.id,
@@ -138,13 +143,3 @@ def log_fact(
         superseded_id=out.superseded_id,
         refines_id=out.refines_id,
     )
-
-
-class FactOut(BaseModel):
-    id: uuid.UUID
-    statement: str
-    entity: str | None
-    attribute: str | None
-    valid_from: datetime
-    valid_until: datetime | None
-    confidence: float

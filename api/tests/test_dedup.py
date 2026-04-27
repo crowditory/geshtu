@@ -7,6 +7,7 @@ load BGE-M3.
 from __future__ import annotations
 
 import math
+import uuid
 
 import pytest
 
@@ -18,7 +19,7 @@ DIM = 1024
 
 
 def _vec(seed: int, sim_to: list[float] | None = None, blend: float = 1.0) -> list[float]:
-    """Make a deterministic unit vector. If `sim_to` is provided, blend it in."""
+    """Build a deterministic unit vector; optionally blend toward another vector."""
     import random
 
     rng = random.Random(seed)
@@ -31,7 +32,9 @@ def _vec(seed: int, sim_to: list[float] | None = None, blend: float = 1.0) -> li
 
 @pytest.fixture
 def project(db):
-    p = Project(slug=f"dedup-test-{id(db)}", name="Dedup Test")
+    # uuid in the slug avoids UNIQUE collisions when tests run repeatedly
+    # against a persistent dev DB (the fixture commits, so cleanup is partial).
+    p = Project(slug=f"dedup-test-{uuid.uuid4().hex[:12]}", name="Dedup Test")
     db.add(p)
     db.commit()
     db.refresh(p)

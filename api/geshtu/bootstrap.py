@@ -1,7 +1,9 @@
 """First-run CLI: create the team row, create the admin user, print a token.
 
-Idempotent: if a team or user already exists, only missing pieces are created
-and a fresh admin token is issued.
+Idempotent on team + user, but always issues a NEW token. Rationale: the
+original token is bcrypt-hashed in the DB, so we cannot recover it if the
+admin lost it. Re-running bootstrap is the supported recovery path. Old
+tokens remain valid (revoke them via the admin UI if needed).
 """
 
 from __future__ import annotations

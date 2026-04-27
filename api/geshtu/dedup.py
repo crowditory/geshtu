@@ -66,17 +66,22 @@ def upsert_fact(
     refines_id: uuid.UUID | None = None
     sim = float(nearest.sim) if nearest is not None else 0.0
 
+    # Three-way decision (spec §5.1). Note we use cosine SIMILARITY here
+    # (1 − cosine distance), so higher = more similar.
+    #   ≥ 0.92  → near-identical claim, mark old as superseded
+    #   0.75 ≤ … < 0.92 → related but distinct, link via `refines`
+    #   < 0.75  → independent, plain insert
     if nearest is not None and sim >= s.dedup_supersede_threshold:
-        # Identical/near-identical: supersede the old one.
         old_id = nearest.id
         now = datetime.now(tz=timezone.utc)
+        # The `valid_until IS NULL` guard prevents a race where two workers
+        # try to supersede the same fact concurrently — only one wins.
         db.execute(
             text("UPDATE facts SET valid_until = :now WHERE id = :id AND valid_until IS NULL"),
             {"now": now, "id": str(old_id)},
         )
         superseded_id = old_id
     elif nearest is not None and sim >= s.dedup_refine_threshold:
-        # Refinement of an existing fact.
         refines_id = nearest.id
 
     new_fact = Fact(
@@ -92,6 +97,7 @@ def upsert_fact(
         refines=refines_id,
     )
     db.add(new_fact)
+    # flush() so the new fact has an ID we can reference from the old row.
     db.flush()
 
     if superseded_id is not None:

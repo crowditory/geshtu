@@ -40,4 +40,7 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    # Cached so `Settings()` runs once per process. Pydantic-settings reads
+    # env + .env on construction, which we do NOT want to repeat per request:
+    # both for cost and to make config truly immutable at runtime.
     return Settings()  # type: ignore[call-arg]
