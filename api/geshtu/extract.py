@@ -60,7 +60,7 @@ class Extraction:
     decisions: list[ExtractedDecision]
 
     @classmethod
-    def empty(cls) -> "Extraction":
+    def empty(cls) -> Extraction:
         return cls(facts=[], decisions=[])
 
 

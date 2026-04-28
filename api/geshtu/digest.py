@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from anthropic import Anthropic
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from geshtu.config import get_settings
-from geshtu.db.models import Decision, Digest, Fact, SessionSummary, Session_
+from geshtu.db.models import Decision, Digest, Fact, Session_, SessionSummary
 from geshtu.logging import get_logger
 
 _log = get_logger(__name__)
@@ -80,7 +80,7 @@ def _cached(
     by design — a digest "since Monday" is not interchangeable with one
     "since last Friday" even if generated 10 seconds apart.
     """
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=ttl)
+    cutoff = datetime.now(tz=UTC) - timedelta(seconds=ttl)
     stmt = (
         select(Digest)
         .where(

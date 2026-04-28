@@ -19,10 +19,10 @@ if TYPE_CHECKING:
 _log = get_logger(__name__)
 
 _lock = threading.Lock()
-_model: "SentenceTransformer | None" = None
+_model: SentenceTransformer | None = None
 
 
-def get_embedder() -> "SentenceTransformer":
+def get_embedder() -> SentenceTransformer:
     # Double-checked locking. The fast path skips the lock once the model is
     # loaded — embedding is hot and we don't want every request to contend.
     # The lock matters because both Celery's prefork pool (worker side) and

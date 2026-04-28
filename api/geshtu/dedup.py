@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -46,9 +46,9 @@ def upsert_fact(
     *,
     project_id: uuid.UUID,
     statement: str,
-    entity: str | None,
-    attribute: str | None,
     embedding: list[float],
+    entity: str | None = None,
+    attribute: str | None = None,
     source_session_id: uuid.UUID | None = None,
     source_message_id: uuid.UUID | None = None,
     created_by: uuid.UUID | None = None,
@@ -73,7 +73,7 @@ def upsert_fact(
     #   < 0.75  → independent, plain insert
     if nearest is not None and sim >= s.dedup_supersede_threshold:
         old_id = nearest.id
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         # The `valid_until IS NULL` guard prevents a race where two workers
         # try to supersede the same fact concurrently — only one wins.
         db.execute(

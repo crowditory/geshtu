@@ -12,7 +12,7 @@ import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 import bcrypt
@@ -24,7 +24,6 @@ from sqlalchemy.orm import Session
 from geshtu.config import get_settings
 from geshtu.db.models import AccessToken, User
 from geshtu.db.session import get_db
-
 
 # ─── Public types ────────────────────────────────────────────────────
 
@@ -99,7 +98,7 @@ class JWTAuthProvider:
         label: str | None = None,
     ) -> tuple[str, AccessToken]:
         token_id = uuid.uuid4()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         payload = {
             "sub": str(user_id),
             "tid": str(token_id),
@@ -158,8 +157,8 @@ class JWTAuthProvider:
         if user is None:
             return None
 
-        record.last_used_at = datetime.now(tz=timezone.utc)
-        user.last_seen_at = datetime.now(tz=timezone.utc)
+        record.last_used_at = datetime.now(tz=UTC)
+        user.last_seen_at = datetime.now(tz=UTC)
 
         return AuthedUser(
             id=user.id,

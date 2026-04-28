@@ -64,7 +64,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501"]
+# B008: FastAPI's `Depends()` is *meant* to live in argument defaults — that
+# is the entire DI mechanism. Disabling globally rather than per-line because
+# every route handler in geshtu/routes/ would otherwise need a `# noqa`.
+ignore = ["E501", "B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

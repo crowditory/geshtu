@@ -7,9 +7,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sqlalchemy import update
 from sqlalchemy import delete as sqldelete
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from geshtu.db.models import Decision, Fact, Session_, User
 from geshtu.db.session import SessionLocal

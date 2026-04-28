@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -136,7 +136,7 @@ def close_session(
         existing.next_actions = body.next_actions
         ss = existing
 
-    s.ended_at = datetime.now(tz=timezone.utc)
+    s.ended_at = datetime.now(tz=UTC)
     db.commit()
     db.refresh(ss)
     _ = user  # logged via access_log below if needed

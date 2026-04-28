@@ -7,10 +7,9 @@ serialize cleanly. All DB work happens inside the task body.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, text
-from sqlalchemy.orm import Session
 
 from geshtu.celery_app import app
 from geshtu.config import get_settings
@@ -153,7 +152,7 @@ def retention_sweep_task() -> dict:
     if s.messages_retention_days <= 0:
         return {"status": "disabled"}
 
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=s.messages_retention_days)
+    cutoff = datetime.now(tz=UTC) - timedelta(days=s.messages_retention_days)
     with SessionLocal() as db:  # type: Session
         result = db.execute(
             text(

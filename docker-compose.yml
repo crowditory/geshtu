@@ -86,18 +86,21 @@ services:
       redis:
         condition: service_healthy
 
+  # The MCP server runs as a stdio process inside the user's MCP client
+  # (Claude Desktop, Cursor, etc.) via `npx -y @geshtu/mcp`. There's no
+  # value running it as a daemon here — there's no stdio peer to talk to.
+  # We keep the build target so the image can be published and tested,
+  # but it's behind the `mcp` profile so default `docker compose up` skips
+  # it. To build/test only:  docker compose --profile mcp build mcp
   mcp:
     build:
       context: ./mcp
-    restart: unless-stopped
+    profiles: ["mcp"]
     environment:
       API_URL: http://api:8000
-      MCP_PORT: "3000"
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "${MCP_PORT:-3000}:3000"
 
   admin:
     build:

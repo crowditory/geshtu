@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(f"Team:       {args.team}")
     print(f"Admin:      {args.admin_email}  ({args.admin_name})")
-    print(f"Admin token (save it — shown ONLY once):")
+    print("Admin token (save it — shown ONLY once):")
     print()
     print(f"   {token}")
     print()

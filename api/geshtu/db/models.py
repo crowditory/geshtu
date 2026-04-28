@@ -119,7 +119,7 @@ class Session_(Base):
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
 
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list[Message]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
 
