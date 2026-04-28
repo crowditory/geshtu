@@ -31,8 +31,9 @@ services:
   # CMD. Sharing means embed.py / extract.py / models.py only get built
   # once and the BGE-M3 model cache is mountable into both. The API is on
   # `expose` not `ports`: it stays on the internal Docker network and is
-  # reached only through MCP / admin / Caddy. Publish it on the host
-  # only if you need a remote REST client.
+  # reached only through admin / Caddy / mcp. If you need to curl it from
+  # the host as a diagnostic, the simplest path is `docker compose exec
+  # api curl localhost:8000/health`.
   api:
     build:
       context: ./api
@@ -114,14 +115,23 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${ADMIN_PORT:-8501}:8501"
+      # ADMIN_BIND controls who can reach the admin UI directly:
+      #   - unset / 0.0.0.0 (default): public — fine for laptop dev or
+      #     trusted private networks
+      #   - 127.0.0.1: loopback only — set this when a TLS-terminating
+      #     reverse proxy (Caddy) sits in front and exposes admin via HTTPS
+      - "${ADMIN_BIND:-0.0.0.0}:${ADMIN_PORT:-8501}:8501"
 
+  # TLS terminator. Behind the `tls` profile so local-dev `docker compose up`
+  # stays HTTP-only (no Let's Encrypt rate-limit risk while iterating).
+  # Production:  docker compose --profile tls up -d
   caddy:
     image: caddy:2
     restart: unless-stopped
     profiles: ["tls"]
     environment:
-      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:-localhost}
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME:?set PUBLIC_HOSTNAME in .env (e.g. geshtu.example.com)}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
@@ -130,9 +140,10 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - api
-      - mcp
-      - admin
+      api:
+        condition: service_healthy
+      admin:
+        condition: service_started
 
 volumes:
   pgdata:
