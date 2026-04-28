@@ -10,11 +10,14 @@
 //   GESHTU_TOKEN    — the bearer (starts with `tk_`)
 //   GESHTU_API_URL  — base URL of your memory-api (e.g. https://geshtu.playserv.com/api)
 // Optional env (recommended):
-//   GESHTU_USER     — your email or display name. We call /users/me on
-//                     startup and refuse to serve if the token does not
-//                     identify this user. Defense in depth + makes config
-//                     mistakes loud (you'll see "logged in as alice" if
-//                     you copy-pasted alice's token by accident).
+//   GESHTU_EMAIL    — your email. We call /users/me on startup and refuse
+//                     to serve if the token doesn't identify this user.
+//                     Defense in depth + makes config mistakes loud
+//                     (you'll see "logged in as alice" if you copy-pasted
+//                     alice's token by accident).
+//   GESHTU_USER     — same idea, but matches against display_name OR email
+//                     OR user UUID. Kept for compatibility; prefer
+//                     GESHTU_EMAIL when you have it.
 //   GESHTU_PROJECT  — project slug to default into tools. With this set,
 //                     `geshtu_search` / `_decisions` / `_digest` etc. don't
 //                     need a `project` argument every call.
@@ -36,6 +39,10 @@ if (!TOKEN || TOKEN.length < 8) {
 }
 const opts: api.ApiOptions = { token: TOKEN };
 
+// GESHTU_EMAIL is preferred (it's specifically an email); GESHTU_USER is
+// the older, more permissive name that matches against email / display
+// name / user UUID. Either is honored at startup.
+const EXPECTED_EMAIL = process.env.GESHTU_EMAIL?.trim() || null;
 const EXPECTED_USER = process.env.GESHTU_USER?.trim() || null;
 const DEFAULT_PROJECT = process.env.GESHTU_PROJECT?.trim() || null;
 
@@ -129,7 +136,7 @@ function jsonSchema(s: z.ZodTypeAny): any {
 // ─── Server setup ──────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: "geshtu", version: "0.2.0" },
+  { name: "geshtu", version: "0.2.1" },
   { capabilities: { tools: {} } },
 );
 
@@ -292,7 +299,14 @@ async function verifyIdentity(): Promise<void> {
       (DEFAULT_PROJECT ? ` · project=${DEFAULT_PROJECT}` : "") +
       ` · api=${process.env.API_URL ?? process.env.GESHTU_API_URL ?? "default"}`,
   );
-  if (EXPECTED_USER) {
+  if (EXPECTED_EMAIL) {
+    if (me.email.toLowerCase() !== EXPECTED_EMAIL.toLowerCase()) {
+      console.error(
+        `Geshtu MCP: GESHTU_EMAIL=${EXPECTED_EMAIL} but the token identifies ${me.email}. Refusing to start.`,
+      );
+      process.exit(3);
+    }
+  } else if (EXPECTED_USER) {
     const expected = EXPECTED_USER.toLowerCase();
     if (
       me.email.toLowerCase() !== expected &&

@@ -8,6 +8,7 @@
     Users as UsersIcon,
     KeyRound,
     LogOut,
+    Plug,
   } from "lucide-svelte";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
@@ -21,6 +22,7 @@
   // hidden for non-admin tokens.
   const items = [
     { href: "/dashboard",  label: "Dashboard", icon: LayoutDashboard },
+    { href: "/connect",    label: "Connect",   icon: Plug },
     { href: "/projects",   label: "Projects",  icon: FolderKanban },
     { href: "/facts",      label: "Facts",     icon: Search },
     { href: "/decisions",  label: "Decisions", icon: Lightbulb },

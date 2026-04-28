@@ -43,7 +43,11 @@
 </script>
 
 {#if ready}
-  <div class="flex min-h-screen bg-background text-foreground">
+  <!-- App shell: fixed-height container, sidebar stays put, main scrolls.
+       Using h-screen (not min-h-screen) means the outer box is exactly
+       100vh; <main>'s overflow-y-auto is then the only scroller, and the
+       sidebar never moves with the body. -->
+  <div class="flex h-screen overflow-hidden bg-background text-foreground">
     <Sidebar />
     <main class="flex-1 overflow-y-auto">
       <div class="mx-auto max-w-6xl px-8 py-8">

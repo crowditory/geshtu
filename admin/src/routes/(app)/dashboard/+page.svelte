@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Activity, FolderKanban, Users, Database } from "lucide-svelte";
+  import { Activity, FolderKanban, Users, Database, Plug, ArrowRight } from "lucide-svelte";
   import Card from "$lib/components/ui/Card.svelte";
   import Skeleton from "$lib/components/ui/Skeleton.svelte";
   import Badge from "$lib/components/ui/Badge.svelte";
+  import Button from "$lib/components/ui/Button.svelte";
   import { api } from "$lib/api/client";
   import { user } from "$lib/stores/auth";
   import { projects, activeProjectSlug } from "$lib/stores/project";
@@ -43,6 +44,59 @@
     {#if $user}Welcome, {$user.display_name}.{/if}
   </p>
 </header>
+
+{#if $projects.length === 0}
+  <!-- First-run state. Replaces all the metrics/decisions noise with a clear
+       two-step path: create a project, then go to Connect. -->
+  <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <Card class="p-8">
+      <div class="flex items-start gap-4">
+        <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <FolderKanban class="h-5 w-5" />
+        </span>
+        <div class="flex-1">
+          <h2 class="text-lg font-semibold">Create your first project</h2>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Memory is scoped per-project. Make one for the codebase / product
+            you want the team's LLMs to share context about.
+          </p>
+          {#if $user?.role === "admin"}
+            <div class="mt-4">
+              <Button href="/projects">
+                Add a project
+                <ArrowRight class="h-4 w-4" />
+              </Button>
+            </div>
+          {:else}
+            <p class="mt-4 text-sm text-muted-foreground">
+              Ask your admin to create one — only admins can.
+            </p>
+          {/if}
+        </div>
+      </div>
+    </Card>
+    <Card class="p-8">
+      <div class="flex items-start gap-4">
+        <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Plug class="h-5 w-5" />
+        </span>
+        <div class="flex-1">
+          <h2 class="text-lg font-semibold">Then connect your AI client</h2>
+          <p class="mt-1 text-sm text-muted-foreground">
+            Generate a token, copy a JSON config snippet for Claude Desktop / Cursor / Windsurf,
+            paste the team protocol. Three steps, one page.
+          </p>
+          <div class="mt-4">
+            <Button href="/connect" variant="outline">
+              Open Connect
+              <ArrowRight class="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  </section>
+{:else}
 
 <section class="grid grid-cols-2 gap-4 md:grid-cols-4">
   <Card class="p-4">
@@ -114,3 +168,4 @@
     </div>
   {/if}
 </section>
+{/if}

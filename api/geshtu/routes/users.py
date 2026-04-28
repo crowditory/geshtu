@@ -72,6 +72,91 @@ def me(user: AuthedUser = Depends(current_user), db: Session = Depends(get_db)) 
     return _u_out(u)
 
 
+def _serialize_tokens(db: Session, rows: list[AccessToken]) -> list[TokenOut]:
+    proj_ids = {t.project_id for t in rows if t.project_id is not None}
+    slugs: dict[uuid.UUID, str] = {}
+    if proj_ids:
+        slugs = {
+            p.id: p.slug
+            for p in db.execute(select(Project).where(Project.id.in_(proj_ids))).scalars()
+        }
+    return [
+        TokenOut(
+            id=t.id,
+            label=t.label,
+            project_id=t.project_id,
+            project_slug=slugs.get(t.project_id) if t.project_id else None,
+            created_at=t.created_at,
+            last_used_at=t.last_used_at,
+            revoked_at=t.revoked_at,
+        )
+        for t in rows
+    ]
+
+
+@router.get("/me/tokens", response_model=list[TokenOut])
+def list_my_tokens(
+    user: AuthedUser = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> list[TokenOut]:
+    """Tokens belonging to the authenticated user. No admin role required —
+    you can always see your own tokens (you'd just need them to authenticate
+    in the first place)."""
+    rows = (
+        db.execute(
+            select(AccessToken)
+            .where(AccessToken.user_id == user.id)
+            .order_by(AccessToken.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    return _serialize_tokens(db, list(rows))
+
+
+@router.post("/me/tokens", response_model=dict)
+def issue_my_token(
+    body: TokenIssueIn,
+    user: AuthedUser = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Issue a fresh token for the authenticated user.
+
+    Members can self-issue (so the Connect page in the admin UI can hand
+    them a working token without needing an admin every time). The risk is
+    bounded: you already needed a valid token to call this endpoint, so this
+    can't bootstrap access — only rotate/expand it for an already-known user.
+    A project-scoped caller is restricted to issuing tokens for the same
+    project (or unscoped, which we then narrow to the same project).
+    """
+    proj = _resolve_project_for_token(db, body.project)
+    # If the caller's token is project-scoped, the new token must be for the
+    # same project — otherwise we'd let a scoped token escape its scope.
+    if user.token_project_id is not None:
+        if proj is None:
+            # Implicitly inherit the caller's scope.
+            proj = db.get(Project, user.token_project_id)
+        elif proj.id != user.token_project_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="this token can only mint tokens for its own project",
+            )
+    token, record = get_auth_provider().issue_token(
+        db,
+        user.id,
+        label=body.label,
+        project_id=proj.id if proj else None,
+    )
+    db.commit()
+    return {
+        "id": str(record.id),
+        "token": token,
+        "label": record.label,
+        "project_id": str(proj.id) if proj else None,
+        "project_slug": proj.slug if proj else None,
+    }
+
+
 @router.get("", response_model=list[UserOut])
 def list_users(
     _admin: AuthedUser = Depends(require_admin),
@@ -153,33 +238,14 @@ def list_tokens(
 ) -> list[TokenOut]:
     rows = (
         db.execute(
-            select(AccessToken).where(AccessToken.user_id == user_id).order_by(
-                AccessToken.created_at.desc()
-            )
+            select(AccessToken)
+            .where(AccessToken.user_id == user_id)
+            .order_by(AccessToken.created_at.desc())
         )
         .scalars()
         .all()
     )
-    # Build a project_id -> slug map so the response shows scope at a glance.
-    proj_ids = {t.project_id for t in rows if t.project_id is not None}
-    slugs: dict[uuid.UUID, str] = {}
-    if proj_ids:
-        slugs = {
-            p.id: p.slug
-            for p in db.execute(select(Project).where(Project.id.in_(proj_ids))).scalars()
-        }
-    return [
-        TokenOut(
-            id=t.id,
-            label=t.label,
-            project_id=t.project_id,
-            project_slug=slugs.get(t.project_id) if t.project_id else None,
-            created_at=t.created_at,
-            last_used_at=t.last_used_at,
-            revoked_at=t.revoked_at,
-        )
-        for t in rows
-    ]
+    return _serialize_tokens(db, list(rows))
 
 
 @router.post("/tokens/{token_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)

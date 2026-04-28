@@ -137,4 +137,9 @@ export const api = {
     request<IssuedToken>("POST", `/users/${userId}/tokens`, body),
   revokeToken: (tokenId: string) =>
     request<void>("POST", `/users/tokens/${tokenId}/revoke`),
+
+  // Self-service tokens (any authenticated user)
+  listMyTokens: () => request<Token[]>("GET", "/users/me/tokens"),
+  issueMyToken: (body: { label?: string; project?: string }) =>
+    request<IssuedToken>("POST", "/users/me/tokens", body),
 };

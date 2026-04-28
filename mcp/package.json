@@ -1,6 +1,6 @@
 {
   "name": "@geshtu/mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "MCP server for Geshtu — self-hosted shared memory for teams using LLMs. Exposes 6 tools (search, decisions, digest, log_decision, log_fact, close_session) that proxy to a self-hosted memory-api.",
   "keywords": [
     "mcp",
