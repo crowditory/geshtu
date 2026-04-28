@@ -13,7 +13,7 @@ from geshtu.auth import AuthedUser, current_user
 from geshtu.db.models import Message, Session_
 from geshtu.db.session import get_db
 from geshtu.queue import enqueue_extraction
-from geshtu.routes.common import log_access
+from geshtu.routes.common import assert_project_in_scope, log_access
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -45,6 +45,7 @@ def append_message(
     sess = db.get(Session_, body.session_id)
     if sess is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
+    assert_project_in_scope(sess.project_id, user)
 
     msg = Message(
         session_id=body.session_id,

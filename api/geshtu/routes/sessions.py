@@ -15,7 +15,7 @@ from geshtu.auth import AuthedUser, current_user
 from geshtu.db.models import Session_, SessionSummary
 from geshtu.db.session import get_db
 from geshtu.digest import summarize_session
-from geshtu.routes.common import resolve_project
+from geshtu.routes.common import assert_project_in_scope, resolve_project
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -68,7 +68,7 @@ def create_session(
     user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> SessionOut:
-    project = resolve_project(db, body.project)
+    project = resolve_project(db, body.project, user)
     s = Session_(
         project_id=project.id,
         user_id=user.id,
@@ -85,12 +85,13 @@ def create_session(
 @router.get("/{session_id}", response_model=SessionOut)
 def get_session(
     session_id: uuid.UUID,
-    _user: AuthedUser = Depends(current_user),
+    user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> SessionOut:
     s = db.get(Session_, session_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
+    assert_project_in_scope(s.project_id, user)
     return _to_out(s)
 
 
@@ -104,6 +105,7 @@ def close_session(
     s = db.get(Session_, session_id)
     if s is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
+    assert_project_in_scope(s.project_id, user)
 
     summary_md = body.summary_md
     if not summary_md and body.auto_summarize:

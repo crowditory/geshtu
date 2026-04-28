@@ -10,11 +10,18 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from geshtu.auth import AuthedUser
 from geshtu.db.models import AccessLog, Project
 
 
-def resolve_project(db: Session, project: str) -> Project:
-    """Accept either a slug or a UUID; return the Project row or 404."""
+def resolve_project(db: Session, project: str, user: AuthedUser | None = None) -> Project:
+    """Resolve a slug or UUID to a Project, enforcing token scope.
+
+    If ``user`` is provided and their token is project-scoped, the resolved
+    project must match the token's scope — otherwise 403. This is the single
+    chokepoint: every route that takes a `project` arg routes through here,
+    so the scope check applies everywhere automatically.
+    """
     proj: Project | None = None
     try:
         pid = uuid.UUID(project)
@@ -27,7 +34,26 @@ def resolve_project(db: Session, project: str) -> Project:
         proj = db.execute(select(Project).where(Project.slug == project)).scalar_one_or_none()
     if proj is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"unknown project: {project}")
+
+    if user is not None and user.token_project_id is not None and proj.id != user.token_project_id:
+        # Project-scoped token used against a different project. Don't leak
+        # which projects exist — same 403 either way.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="this token is scoped to a different project",
+        )
+
     return proj
+
+
+def assert_project_in_scope(project_id: uuid.UUID, user: AuthedUser) -> None:
+    """For routes that receive a session_id / message_id and look up the
+    project indirectly: enforce token scope on the resolved project_id."""
+    if user.token_project_id is not None and project_id != user.token_project_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="this token is scoped to a different project",
+        )
 
 
 def log_access(

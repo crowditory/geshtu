@@ -6,9 +6,18 @@
 // check (signature + bcrypt + revocation) — that keeps the MCP layer
 // dumb and means a leaked JWT_SECRET never ends up shipped to clients.
 //
-// Token sources (first wins):
-//   1) GESHTU_TOKEN env var — the standard local-npx pattern
-//   2) (future) Authorization header on an HTTP transport
+// Required env:
+//   GESHTU_TOKEN    — the bearer (starts with `tk_`)
+//   GESHTU_API_URL  — base URL of your memory-api (e.g. https://geshtu.playserv.com/api)
+// Optional env (recommended):
+//   GESHTU_USER     — your email or display name. We call /users/me on
+//                     startup and refuse to serve if the token does not
+//                     identify this user. Defense in depth + makes config
+//                     mistakes loud (you'll see "logged in as alice" if
+//                     you copy-pasted alice's token by accident).
+//   GESHTU_PROJECT  — project slug to default into tools. With this set,
+//                     `geshtu_search` / `_decisions` / `_digest` etc. don't
+//                     need a `project` argument every call.
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -27,28 +36,45 @@ if (!TOKEN || TOKEN.length < 8) {
 }
 const opts: api.ApiOptions = { token: TOKEN };
 
+const EXPECTED_USER = process.env.GESHTU_USER?.trim() || null;
+const DEFAULT_PROJECT = process.env.GESHTU_PROJECT?.trim() || null;
+
 // ─── Tool schemas (zod, but rendered to JSON Schema for MCP) ───────────
+//
+// `project` is OPTIONAL when GESHTU_PROJECT is set in the env. The schema is
+// the same either way — at call time we substitute the env default if the
+// model didn't pass one. This keeps the tool surface stable across clients
+// that do or don't set GESHTU_PROJECT.
+
+const projectField = z
+  .string()
+  .optional()
+  .describe(
+    DEFAULT_PROJECT
+      ? `Project slug. Optional — defaults to "${DEFAULT_PROJECT}" (configured in this MCP connection).`
+      : "Project slug or UUID. Required — no default project is configured.",
+  );
 
 const SearchInput = z.object({
-  project: z.string().describe("Project slug or UUID"),
+  project: projectField,
   query: z.string().min(1).describe("Free-form text to search"),
   k: z.number().int().min(1).max(50).default(10),
 });
 
 const DecisionsInput = z.object({
-  project: z.string(),
+  project: projectField,
   limit: z.number().int().min(1).max(200).default(10),
   since: z.string().optional().describe("ISO date or datetime — only return decisions after this"),
 });
 
 const DigestInput = z.object({
-  project: z.string(),
+  project: projectField,
   since: z.string().optional(),
   depth: z.enum(["quick", "standard", "deep"]).default("standard"),
 });
 
 const LogDecisionInput = z.object({
-  project: z.string(),
+  project: projectField,
   decision: z.string().min(3),
   rationale: z.string().min(3),
   source_session_id: z.string().uuid().optional(),
@@ -56,7 +82,7 @@ const LogDecisionInput = z.object({
 });
 
 const LogFactInput = z.object({
-  project: z.string(),
+  project: projectField,
   statement: z.string().min(3),
   entity: z.string().optional(),
   attribute: z.string().optional(),
@@ -103,7 +129,7 @@ function jsonSchema(s: z.ZodTypeAny): any {
 // ─── Server setup ──────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: "geshtu", version: "0.1.0" },
+  { name: "geshtu", version: "0.2.0" },
   { capabilities: { tools: {} } },
 );
 
@@ -154,6 +180,18 @@ const TOOLS = [
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
+function resolveProject(passed: string | undefined): string {
+  // Fill in GESHTU_PROJECT if the model didn't pass one. If neither is set,
+  // surface a clear actionable error rather than letting the API 422.
+  const value = (passed?.trim() || DEFAULT_PROJECT)?.trim();
+  if (!value) {
+    throw new Error(
+      "no project specified and GESHTU_PROJECT env var is not set in this MCP connection",
+    );
+  }
+  return value;
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const name = req.params.name;
   const raw = req.params.arguments ?? {};
@@ -161,29 +199,47 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     switch (name) {
       case "geshtu_search": {
         const a = SearchInput.parse(raw);
-        const out = await api.search(opts, { project: a.project, q: a.query, k: a.k });
+        const out = await api.search(opts, {
+          project: resolveProject(a.project),
+          q: a.query,
+          k: a.k,
+        });
         return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
       }
       case "geshtu_decisions": {
         const a = DecisionsInput.parse(raw);
-        const out = await api.listDecisions(opts, a);
+        const out = await api.listDecisions(opts, {
+          project: resolveProject(a.project),
+          limit: a.limit,
+          since: a.since,
+        });
         return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
       }
       case "geshtu_digest": {
         const a = DigestInput.parse(raw);
-        const out = await api.getDigest(opts, a);
+        const out = await api.getDigest(opts, {
+          project: resolveProject(a.project),
+          since: a.since,
+          depth: a.depth,
+        });
         return { content: [{ type: "text", text: out.content_md }] };
       }
       case "geshtu_log_decision": {
         const a = LogDecisionInput.parse(raw);
-        const out = await api.logDecision(opts, a);
+        const out = await api.logDecision(opts, {
+          ...a,
+          project: resolveProject(a.project),
+        });
         return {
           content: [{ type: "text", text: `logged decision ${out.id}` }],
         };
       }
       case "geshtu_log_fact": {
         const a = LogFactInput.parse(raw);
-        const out = await api.logFact(opts, a);
+        const out = await api.logFact(opts, {
+          ...a,
+          project: resolveProject(a.project),
+        });
         return {
           content: [
             {
@@ -217,7 +273,42 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
 // ─── Main ─────────────────────────────────────────────────────────────
 
+async function verifyIdentity(): Promise<void> {
+  // Calling /users/me does three useful things at once:
+  //   1) confirms the token is valid before MCP starts answering tool calls
+  //   2) prints "logged in as X" to stderr so the operator sees who the
+  //      client is connected as (helps catch wrong-token-in-config mistakes)
+  //   3) if GESHTU_USER is configured, hard-fails when the token doesn't
+  //      identify that user — the user-id-as-second-factor check.
+  let me;
+  try {
+    me = await api.whoami(opts);
+  } catch (err: any) {
+    console.error(`Geshtu auth failed: ${err?.message ?? err}`);
+    process.exit(2);
+  }
+  console.error(
+    `Geshtu MCP: connected as ${me.display_name} <${me.email}> (${me.role})` +
+      (DEFAULT_PROJECT ? ` · project=${DEFAULT_PROJECT}` : "") +
+      ` · api=${process.env.API_URL ?? process.env.GESHTU_API_URL ?? "default"}`,
+  );
+  if (EXPECTED_USER) {
+    const expected = EXPECTED_USER.toLowerCase();
+    if (
+      me.email.toLowerCase() !== expected &&
+      me.display_name.toLowerCase() !== expected &&
+      me.id !== EXPECTED_USER
+    ) {
+      console.error(
+        `Geshtu MCP: GESHTU_USER=${EXPECTED_USER} but the token identifies ${me.email}. Refusing to start.`,
+      );
+      process.exit(3);
+    }
+  }
+}
+
 async function main(): Promise<void> {
+  await verifyIdentity();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // The SDK keeps the process alive while the transport is connected.

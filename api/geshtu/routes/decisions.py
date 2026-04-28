@@ -47,7 +47,7 @@ def list_decisions(
     user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> list[DecisionOut]:
-    proj = resolve_project(db, project)
+    proj = resolve_project(db, project, user)
     stmt = select(Decision).where(Decision.project_id == proj.id)
     s = parse_since(since)
     if s is not None:
@@ -83,7 +83,7 @@ def log_decision(
     user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> DecisionOut:
-    proj = resolve_project(db, body.project)
+    proj = resolve_project(db, body.project, user)
     if not body.rationale.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="rationale is required"

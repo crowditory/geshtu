@@ -1,20 +1,16 @@
-FROM python:3.12-slim
-
-ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
+FROM node:20-alpine AS build
 WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --no-audit --no-fund
+COPY . .
+RUN npm run build
 
-COPY requirements.txt ./
-RUN pip install --upgrade pip && pip install -r requirements.txt
-
-COPY streamlit_app.py ./
-
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/build ./build
+# sirv-cli is tiny (~3 MB) and handles SPA fallback (--single) so SvelteKit's
+# client-side routing works for any URL the user lands on directly.
+RUN npm install --omit=dev --no-audit --no-fund sirv-cli@3.0.0
 EXPOSE 8501
-
-CMD ["streamlit", "run", "streamlit_app.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.headless=true", \
-     "--browser.gatherUsageStats=false"]
+CMD ["npx", "sirv-cli", "build", "--port", "8501", "--host", "0.0.0.0", "--single", "--quiet"]

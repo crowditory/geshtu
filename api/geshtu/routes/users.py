@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from geshtu.auth import AuthedUser, current_user, get_auth_provider, require_admin
-from geshtu.db.models import AccessToken, User
+from geshtu.db.models import AccessToken, Project, User
 from geshtu.db.session import get_db
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -38,11 +38,16 @@ class UserWithTokenOut(UserOut):
 
 class TokenIssueIn(BaseModel):
     label: str | None = None
+    # Optional scope: pass a project slug or UUID to lock the token to one
+    # project. Omit for a team-wide token (admin pattern).
+    project: str | None = None
 
 
 class TokenOut(BaseModel):
     id: uuid.UUID
     label: str | None
+    project_id: uuid.UUID | None
+    project_slug: str | None
     created_at: datetime
     last_used_at: datetime | None
     revoked_at: datetime | None
@@ -97,6 +102,22 @@ def create_user(
     return UserWithTokenOut(**out)
 
 
+def _resolve_project_for_token(db: Session, ref: str | None) -> Project | None:
+    if not ref:
+        return None
+    try:
+        pid = uuid.UUID(ref)
+        p = db.get(Project, pid)
+    except ValueError:
+        p = db.execute(select(Project).where(Project.slug == ref)).scalar_one_or_none()
+    if p is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"unknown project: {ref}",
+        )
+    return p
+
+
 @router.post("/{user_id}/tokens", response_model=dict)
 def issue_token(
     user_id: uuid.UUID,
@@ -107,9 +128,21 @@ def issue_token(
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
-    token, record = get_auth_provider().issue_token(db, u.id, label=body.label)
+    proj = _resolve_project_for_token(db, body.project)
+    token, record = get_auth_provider().issue_token(
+        db,
+        u.id,
+        label=body.label,
+        project_id=proj.id if proj else None,
+    )
     db.commit()
-    return {"id": str(record.id), "token": token, "label": record.label}
+    return {
+        "id": str(record.id),
+        "token": token,
+        "label": record.label,
+        "project_id": str(proj.id) if proj else None,
+        "project_slug": proj.slug if proj else None,
+    }
 
 
 @router.get("/{user_id}/tokens", response_model=list[TokenOut])
@@ -127,10 +160,20 @@ def list_tokens(
         .scalars()
         .all()
     )
+    # Build a project_id -> slug map so the response shows scope at a glance.
+    proj_ids = {t.project_id for t in rows if t.project_id is not None}
+    slugs: dict[uuid.UUID, str] = {}
+    if proj_ids:
+        slugs = {
+            p.id: p.slug
+            for p in db.execute(select(Project).where(Project.id.in_(proj_ids))).scalars()
+        }
     return [
         TokenOut(
             id=t.id,
             label=t.label,
+            project_id=t.project_id,
+            project_slug=slugs.get(t.project_id) if t.project_id else None,
             created_at=t.created_at,
             last_used_at=t.last_used_at,
             revoked_at=t.revoked_at,

@@ -80,6 +80,11 @@ class AccessToken(Base):
     )
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     label: Mapped[str | None] = mapped_column(Text)
+    # Optional project scope: NULL = team-wide. When set, every authenticated
+    # request must reference this project, or auth fails with 403.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
     created_at: Mapped[datetime] = _now_col()
     last_used_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))

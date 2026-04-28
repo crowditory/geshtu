@@ -5,7 +5,12 @@
 // to keep the npm install footprint of `@geshtu/mcp` small — every Claude
 // Desktop user runs this via `npx -y`, and dependency size matters there.
 
-const API_URL = process.env.API_URL ?? "http://api:8000";
+// Two env names supported. GESHTU_API_URL is the user-facing recommended
+// one (matches the GESHTU_TOKEN / GESHTU_USER / GESHTU_PROJECT family).
+// API_URL is kept for backward compat with the original 0.1.0 docs and
+// the docker-compose wiring where the MCP container talks to api:8000.
+const API_URL =
+  process.env.GESHTU_API_URL ?? process.env.API_URL ?? "http://api:8000";
 
 export interface ApiOptions {
   token: string;
@@ -44,6 +49,19 @@ async function request<T>(
 }
 
 // ─── Endpoints ──────────────────────────────────────────────────────
+
+export type Me = {
+  id: string;
+  email: string;
+  display_name: string;
+  role: string;
+  created_at: string;
+  last_seen_at: string;
+};
+
+export async function whoami(opts: ApiOptions): Promise<Me> {
+  return request("GET", "/users/me", opts);
+}
 
 export type SearchedFact = {
   id: string;

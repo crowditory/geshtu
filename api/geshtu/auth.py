@@ -35,16 +35,27 @@ class AuthedUser:
     display_name: str
     role: str
     token_id: uuid.UUID
+    # Optional project scope baked into the token. None = team-wide token
+    # (admin pattern). Set = the only project this token is allowed to touch.
+    token_project_id: uuid.UUID | None = None
 
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
 
 
+class TokenScopeError(Exception):
+    """Raised when a project-scoped token is used against another project."""
+
+
 class AuthProvider(Protocol):
     def authenticate(self, request: Request, db: Session) -> AuthedUser | None: ...
     def issue_token(
-        self, db: Session, user_id: uuid.UUID, label: str | None = None
+        self,
+        db: Session,
+        user_id: uuid.UUID,
+        label: str | None = None,
+        project_id: uuid.UUID | None = None,
     ) -> tuple[str, AccessToken]: ...
 
 
@@ -96,16 +107,21 @@ class JWTAuthProvider:
         db: Session,
         user_id: uuid.UUID,
         label: str | None = None,
+        project_id: uuid.UUID | None = None,
     ) -> tuple[str, AccessToken]:
         token_id = uuid.uuid4()
         now = datetime.now(tz=UTC)
-        payload = {
+        payload: dict[str, str | int | None] = {
             "sub": str(user_id),
             "tid": str(token_id),
             "iat": int(now.timestamp()),
             "exp": int((now + self._ttl).timestamp()),
             "jti": secrets.token_hex(8),
         }
+        # Embed scope in the JWT so it's visible without a DB lookup. The DB
+        # is still authoritative on revocation; we re-check the row each call.
+        if project_id is not None:
+            payload["proj"] = str(project_id)
         encoded = jwt.encode(payload, self._secret, algorithm=self._algorithm)
         token_str = _TOKEN_PREFIX + encoded
 
@@ -114,6 +130,7 @@ class JWTAuthProvider:
             user_id=user_id,
             token_hash=_bcrypt_hash(token_str),
             label=label,
+            project_id=project_id,
         )
         db.add(record)
         db.flush()
@@ -160,12 +177,15 @@ class JWTAuthProvider:
         record.last_used_at = datetime.now(tz=UTC)
         user.last_seen_at = datetime.now(tz=UTC)
 
+        # Trust the DB row (record.project_id) over the JWT claim — if an
+        # admin re-scopes a token after issuance, the DB is the source of truth.
         return AuthedUser(
             id=user.id,
             email=user.email,
             display_name=user.display_name,
             role=user.role,
             token_id=record.id,
+            token_project_id=record.project_id,
         )
 
 

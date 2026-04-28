@@ -47,7 +47,7 @@ def get_digest(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"depth must be one of {DEPTHS}",
         )
-    proj = resolve_project(db, project)
+    proj = resolve_project(db, project, user)
     s = parse_since(since)
     try:
         res = generate_digest(
@@ -107,7 +107,7 @@ def log_fact(
     user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> LogFactOut:
-    proj = resolve_project(db, body.project)
+    proj = resolve_project(db, body.project, user)
     try:
         vec = embed(body.statement)
     except Exception as exc:  # noqa: BLE001

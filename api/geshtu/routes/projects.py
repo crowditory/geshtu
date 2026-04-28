@@ -46,10 +46,15 @@ def _to_out(p: Project) -> ProjectOut:
 
 @router.get("", response_model=list[ProjectOut])
 def list_projects(
-    _user: AuthedUser = Depends(current_user),
+    user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> list[ProjectOut]:
-    rows = db.execute(select(Project).order_by(Project.created_at.desc())).scalars().all()
+    stmt = select(Project).order_by(Project.created_at.desc())
+    # Project-scoped token sees only its one project. Keeps the admin UI's
+    # project switcher honest when used with a member-level scoped token.
+    if user.token_project_id is not None:
+        stmt = stmt.where(Project.id == user.token_project_id)
+    rows = db.execute(stmt).scalars().all()
     return [_to_out(p) for p in rows]
 
 
@@ -77,10 +82,13 @@ def create_project(
 @router.get("/{slug}", response_model=ProjectOut)
 def get_project(
     slug: str,
-    _user: AuthedUser = Depends(current_user),
+    user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> ProjectOut:
     p = db.execute(select(Project).where(Project.slug == slug)).scalar_one_or_none()
     if p is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    if user.token_project_id is not None and p.id != user.token_project_id:
+        # Same 404 as "not found" — don't leak project existence.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
     return _to_out(p)

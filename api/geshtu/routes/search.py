@@ -50,7 +50,7 @@ def search(
     user: AuthedUser = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> SearchOut:
-    proj = resolve_project(db, project)
+    proj = resolve_project(db, project, user)
     facts = search_facts(db, proj.id, q, k=k)
     decisions = search_decisions(db, proj.id, q, k=k) if include_decisions else []
     log_access(

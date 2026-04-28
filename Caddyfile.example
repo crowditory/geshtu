@@ -19,9 +19,9 @@
         reverse_proxy api:8000
     }
 
-    # Default: Streamlit admin UI at the root.
-    # Caddy auto-handles WebSocket upgrades, which Streamlit needs for live
-    # updates — no special config required (unlike nginx).
+    # Default: SvelteKit admin SPA at the root. The container runs sirv-cli
+    # in --single mode, so any deep-link URL (e.g. /tokens) is served from
+    # index.html and the client-side router handles the actual routing.
     handle {
         reverse_proxy admin:8501
     }
