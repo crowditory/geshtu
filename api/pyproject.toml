@@ -22,8 +22,10 @@ dependencies = [
     "celery[redis]>=5.4",
     "redis>=5.0",
     "anthropic>=0.40",
-    "sentence-transformers>=3.0",
-    "torch>=2.2",
+    # ONNX runtime for BGE-M3, replaces sentence-transformers + torch
+    # (saves ~900 MB on the runtime image). Same model name in config,
+    # same 1024-dim L2-normalized output, ~0.999 cosine match with torch.
+    "fastembed>=0.4",
     "numpy>=1.26",
     "PyJWT>=2.9",
     "bcrypt>=4.2",
