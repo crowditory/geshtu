@@ -61,9 +61,10 @@ Desktop config:
   "mcpServers": {
     "geshtu": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/inspector-cli", "http://localhost:3000/mcp"],
+      "args": ["-y", "@geshtu/mcp"],
       "env": {
-        "GESHTU_TOKEN": "tk_..."
+        "GESHTU_TOKEN": "tk_...",
+        "API_URL": "http://localhost:8000"
       }
     }
   }

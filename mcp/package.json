@@ -1,8 +1,27 @@
 {
   "name": "@geshtu/mcp",
   "version": "0.1.0",
-  "description": "MCP server for Geshtu — exposes 6 tools that proxy to memory-api",
+  "description": "MCP server for Geshtu — self-hosted shared memory for teams using LLMs. Exposes 6 tools (search, decisions, digest, log_decision, log_fact, close_session) that proxy to a self-hosted memory-api.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "memory",
+    "llm",
+    "team-memory",
+    "geshtu"
+  ],
+  "homepage": "https://github.com/crowditory/geshtu#readme",
+  "bugs": {
+    "url": "https://github.com/crowditory/geshtu/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crowditory/geshtu.git",
+    "directory": "mcp"
+  },
   "license": "AGPL-3.0-only",
+  "author": "Crowditory Ltd",
   "type": "module",
   "main": "dist/server.js",
   "bin": {
@@ -15,10 +34,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "dev": "tsc -w -p tsconfig.json"
+    "dev": "tsc -w -p tsconfig.json",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepublishOnly": "npm run clean && tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
