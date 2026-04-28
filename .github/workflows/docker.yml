@@ -1,5 +1,19 @@
 name: Publish images
 
+# Builds Docker images and pushes them to GHCR (GitHub Container Registry)
+# whenever a tag matching v* is pushed. Users can then run
+#   docker compose pull && docker compose up -d
+# instead of paying the 5-minute first-time `docker compose build`
+# (torch + CUDA wheels are bulky).
+#
+# Trigger:  git tag v0.1.0 && git push --tags
+#
+# What we DON'T publish:
+# - geshtu-worker — same image as geshtu-api, only the compose `command:`
+#   differs. Publishing twice would just double our GHCR storage.
+# - geshtu-mcp   — distributed via npm (`@geshtu/mcp`). Operators install it
+#   through `npx -y @geshtu/mcp`, not as a Docker image.
+
 on:
   push:
     tags:
@@ -15,8 +29,6 @@ jobs:
       matrix:
         image:
           - { context: ./api,   name: geshtu-api }
-          - { context: ./api,   name: geshtu-worker }
-          - { context: ./mcp,   name: geshtu-mcp }
           - { context: ./admin, name: geshtu-admin }
     steps:
       - uses: actions/checkout@v4

@@ -42,6 +42,27 @@ def _h(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture(autouse=True)
+def _stub_embed(monkeypatch):
+    """Routes that call ``embed()`` (search, decisions, fact-log) reach into
+    sentence_transformers, which CI deliberately does not install (~3 GB of
+    torch + CUDA wheels for tests that don't actually need real embeddings).
+    Substitute a deterministic 1024-dim stub at every import site.
+
+    Each module that did ``from geshtu.embed import embed`` got its own
+    reference to the original at import time, so patching the source module
+    alone isn't enough — we replace every known caller's binding.
+    """
+    fake = lambda _text: [0.0] * 1024  # noqa: E731
+    for path in (
+        "geshtu.embed.embed",
+        "geshtu.search.embed",
+        "geshtu.routes.decisions.embed",
+        "geshtu.routes.digest.embed",
+    ):
+        monkeypatch.setattr(path, fake, raising=False)
+
+
 @dataclass(frozen=True)
 class ProjectRef:
     """Detached snapshot of a Project — safe to use after the session closes."""
