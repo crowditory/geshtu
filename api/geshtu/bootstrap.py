@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-
 from dataclasses import dataclass
 
 from sqlalchemy import select

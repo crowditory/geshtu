@@ -2,7 +2,11 @@
 name = "geshtu"
 version = "0.1.0"
 description = "Self-hosted shared memory for teams using LLMs"
-readme = "../README.md"
+# We deliberately don't set `readme = "../README.md"` — modern setuptools
+# refuses to read files outside the package root, and we ship this package
+# only via `pip install -e .` in Docker / CI. The repo's README lives at
+# the project root and is the canonical source for users; the Python
+# package metadata doesn't need to duplicate it.
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-only" }
 authors = [{ name = "Crowditory Ltd" }]

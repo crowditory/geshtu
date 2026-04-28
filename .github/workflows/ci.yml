@@ -1,4 +1,4 @@
-name: CI
+name: Tests
 
 on:
   push:
@@ -14,7 +14,8 @@ on:
         default: "false"
 
 jobs:
-  api-tests:
+  tests:
+    name: API tests (Postgres + Redis service containers)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -92,7 +93,8 @@ jobs:
           fi
           pytest -q --tb=short -k golden
 
-  mcp-build:
+  mcp:
+    name: MCP server typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -109,6 +111,7 @@ jobs:
           npx tsc --noEmit -p tsconfig.json
 
   lint:
+    name: Ruff (Python linter)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
