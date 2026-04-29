@@ -133,7 +133,7 @@ Full protocol: [docs/team-protocol.md](docs/team-protocol.md).
 - Node.js MCP server (`@modelcontextprotocol/sdk`)
 - Claude Haiku 4.5 (extraction) + Sonnet 4.6 (digests)
 - BGE-M3 embeddings (local, CPU, 1024-dim)
-- Streamlit admin (optional)
+- SvelteKit + Tailwind admin UI (static SPA, served by sirv)
 - Docker Compose deployment
 
 Runs on a single Hetzner CPX21 (~€8/month) for teams up to ~15 people.

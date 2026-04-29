@@ -54,22 +54,61 @@ Idempotent: safe to re-run.
 docker compose exec api python -m geshtu.bootstrap \
   --team "My Team" \
   --admin-email "me@example.com" \
-  --admin-name "Me"
+  --admin-name "Me" \
+  --project-slug "main" \
+  --project-name "Main"
 ```
 
-This prints a one-time admin token. **Save it.** You'll use it to log into
-the admin UI and to wire your own Claude Desktop.
+`--project-slug` and `--project-name` are optional but recommended on first
+run: bootstrap creates the project and issues a **project-scoped token** in
+addition to the admin token, so you skip the "create your first project"
+step in the UI. Output looks like:
+
+```
+Admin token — full access, all projects (save it; shown only once):
+   tk_eyJhbGc…
+
+Project-scoped token for 'main' — recommended for daily use; paste this
+into your MCP client:
+   tk_eyJhbGc…
+```
+
+Save **both** tokens (in 1Password / Bitwarden / your secret store of
+choice). The admin one logs you into the UI and lets you add teammates;
+the project-scoped one is what you drop into your own Claude Desktop
+config — narrower blast radius if it leaks.
 
 ## Step 5 — Open the admin
 
-Visit <http://localhost:8501> and paste the admin token to log in.
+For local development without TLS: visit <http://localhost:8501>.
+For production with Caddy: visit `https://<your-hostname>/`.
 
-From there:
+Paste the admin token to log in. The sidebar's **Connect** tab gives you:
 
-1. Create a project (e.g. `playserv-core`).
-2. Add a teammate — copy the displayed token, send it to them via secure channel.
-3. They paste the token into their Claude Desktop config (see
-   [claude-desktop-setup.md](claude-desktop-setup.md)).
+1. A button to issue more tokens (per-user, optionally per-project)
+2. Pre-filled JSON config for Claude Desktop / Cursor / Windsurf —
+   includes your real API URL, project slug, and email
+3. The team protocol block to paste into your project's system prompt
+
+From the **Users** tab you add teammates one at a time; for each, the UI
+issues a token and shows it once. Send them the **Connect** page link
+plus their token; they paste both into their MCP client.
+
+## Token model — what's worth knowing
+
+Geshtu tokens come in two flavors:
+
+| Flavor | When | Risk if leaked |
+|---|---|---|
+| **All-projects** (no scope) | Admins only — for managing users, projects, settings | Compromises the entire team's memory |
+| **Project-scoped** | Members; admins also use these for daily work | Compromises only that project — other projects unreachable from this token |
+
+Issue project-scoped tokens by default. Keep the admin all-projects token
+in a secret manager and use it only for admin tasks via the UI.
+
+The schema-level enforcement lives on `access_tokens.project_id`: when
+set, `resolve_project()` returns 403 for any request that targets a
+different project, and `/projects` filters to only the scoped one.
 
 ## Step 6 — TLS (production)
 
